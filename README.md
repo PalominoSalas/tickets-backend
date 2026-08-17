@@ -13,6 +13,7 @@ Sistema de gestión de tickets empresarial con **Spring Boot 3.3.2**, **JWT** y 
 - [API Endpoints](#api-endpoints)
 - [Estructura del Proyecto](#estructura-del-proyecto)
 - [Ejemplos de Uso](#ejemplos-de-uso)
+- [Despliegue](#despliegue-deployment)
 - [Contribución](#contribución)
 
 ## ✨ Características
@@ -348,7 +349,313 @@ curl -X PUT http://localhost:8080/api/v1/tickets/1/estado \
 4. Push a la rama (`git push origin feature/AmazingFeature`)
 5. Abre un Pull Request
 
-## 📄 Licencia
+## � Despliegue (Deployment)
+
+### Opción 1: Render (Recomendado - Fácil)
+
+[Render](https://render.com) es la opción más sencilla para desplegar la aplicación.
+
+**Requisitos:**
+- Cuenta en [render.com](https://render.com)
+- Repositorio en GitHub
+- Base de datos PostgreSQL
+
+**Pasos:**
+
+1. **Crear Base de Datos en Render**
+   - Ve a https://dashboard.render.com
+   - Click en "New" → "PostgreSQL"
+   - Nombre: `tickets-db`
+   - Region: Selecciona la más cercana
+   - Copia la **Internal Database URL**
+
+2. **Desplegar el Backend**
+   - Click en "New" → "Web Service"
+   - Conecta tu repositorio GitHub
+   - Branch: `main`
+   - Build Command: `./mvnw clean install`
+   - Start Command: `java -jar target/tickets-backend-0.0.1-SNAPSHOT.jar`
+
+3. **Configurar Variables de Entorno**
+   ```
+   SPRING_DATASOURCE_URL=postgresql://user:pass@host:5432/tickets_db
+   SPRING_DATASOURCE_USERNAME=username
+   SPRING_DATASOURCE_PASSWORD=password
+   APP_JWT_SECRET=tu_secret_key_muy_larga_y_segura_aqui
+   SPRING_PROFILES_ACTIVE=prod
+   ```
+
+4. **Deploy automático**
+   - Render desplegará automáticamente en cada push a main
+
+**URL de la API**: `https://tickets-backend.onrender.com`
+
+---
+
+### Opción 2: Railway (Simple)
+
+[Railway](https://railway.app) es muy similar a Render, también muy fácil de usar.
+
+**Pasos:**
+
+1. **Conectar repositorio**
+   - Ve a https://railway.app
+   - Click en "New Project" → "Deploy from GitHub Repo"
+   - Selecciona tu repositorio
+
+2. **Agregar PostgreSQL**
+   - Click en "Add service" → "Database" → "PostgreSQL"
+   - Railway lo configura automáticamente
+
+3. **Configurar Build & Start**
+   - Build command: `./mvnw clean install`
+   - Start command: `java -jar target/tickets-backend-0.0.1-SNAPSHOT.jar`
+
+4. **Variables de Entorno**
+   ```
+   SPRING_DATASOURCE_URL=${{Postgres.DATABASE_URL}}
+   APP_JWT_SECRET=tu_secret_aqui
+   SPRING_PROFILES_ACTIVE=prod
+   ```
+
+**URL**: Railway genera una URL automáticamente
+
+---
+
+### Opción 3: AWS (Escalable pero más complejo)
+
+Para aplicaciones en producción con más usuarios.
+
+**Usando Elastic Beanstalk:**
+
+1. **Crear Base de Datos RDS**
+   ```bash
+   # En AWS Console
+   - RDS → Create Database → PostgreSQL
+   - Nombre: tickets-db
+   - Username: postgres
+   - Copiar endpoint
+   ```
+
+2. **Preparar el jar**
+   ```bash
+   ./mvnw clean install
+   # Genera: target/tickets-backend-0.0.1-SNAPSHOT.jar
+   ```
+
+3. **Desplegar a Elastic Beanstalk**
+   ```bash
+   # Instalar AWS CLI
+   pip install awscli
+
+   # Configurar credenciales
+   aws configure
+
+   # Crear aplicación
+   eb create tickets-backend-env \
+     --instance-type t3.micro \
+     --database \
+     --database.engine postgres \
+     --database.username postgres
+
+   # Desplegar
+   eb deploy
+   ```
+
+4. **Configurar Variables de Entorno**
+   ```bash
+   eb setenv \
+     SPRING_DATASOURCE_URL=jdbc:postgresql://endpoint:5432/tickets_db \
+     SPRING_DATASOURCE_USERNAME=postgres \
+     SPRING_DATASOURCE_PASSWORD=your_password \
+     APP_JWT_SECRET=your_secret
+   ```
+
+**URL**: AWS proporciona una URL de Elastic Beanstalk
+
+---
+
+### Opción 4: Google Cloud Run (Contenedores)
+
+Para despliegue con Docker.
+
+1. **Crear cuenta en Google Cloud**
+   - https://cloud.google.com
+
+2. **Crear instancia PostgreSQL**
+   ```bash
+   gcloud sql instances create tickets-db \
+     --database-version=POSTGRES_14 \
+     --tier=db-f1-micro \
+     --region=us-central1
+   ```
+
+3. **Construir y subir imagen Docker**
+   ```bash
+   # Construir
+   docker build -t tickets-backend:latest .
+
+   # Configurar Google Cloud
+   gcloud auth login
+   gcloud config set project YOUR_PROJECT_ID
+
+   # Subir a Container Registry
+   docker tag tickets-backend:latest \
+     gcr.io/YOUR_PROJECT_ID/tickets-backend:latest
+
+   docker push gcr.io/YOUR_PROJECT_ID/tickets-backend:latest
+   ```
+
+4. **Desplegar a Cloud Run**
+   ```bash
+   gcloud run deploy tickets-backend \
+     --image gcr.io/YOUR_PROJECT_ID/tickets-backend:latest \
+     --platform managed \
+     --region us-central1 \
+     --set-env-vars SPRING_DATASOURCE_URL=CONNECTION_STRING,APP_JWT_SECRET=SECRET
+   ```
+
+---
+
+### Opción 5: Servidor VPS (DigitalOcean, Linode, Vultr)
+
+Para máximo control.
+
+**En DigitalOcean:**
+
+1. **Crear Droplet**
+   - Selecciona Ubuntu 22.04
+   - RAM mínima: 1GB
+   - Click "Create Droplet"
+
+2. **Conectar por SSH**
+   ```bash
+   ssh root@your_droplet_ip
+   ```
+
+3. **Instalar dependencias**
+   ```bash
+   # Update
+   apt update && apt upgrade -y
+
+   # Java 21
+   apt install openjdk-21-jdk -y
+
+   # PostgreSQL
+   apt install postgresql postgresql-contrib -y
+
+   # Git
+   apt install git -y
+
+   # Nginx (reverse proxy)
+   apt install nginx -y
+   ```
+
+4. **Configurar PostgreSQL**
+   ```bash
+   sudo -u postgres psql
+
+   CREATE DATABASE tickets_db;
+   CREATE USER tickets_user WITH PASSWORD 'strong_password';
+   ALTER ROLE tickets_user SET client_encoding TO 'utf8';
+   ALTER ROLE tickets_user SET default_transaction_isolation TO 'read committed';
+   ALTER ROLE tickets_user SET default_transaction_deferrable TO on;
+   ALTER ROLE tickets_user SET default_transaction_read_committed TO on;
+   GRANT ALL PRIVILEGES ON DATABASE tickets_db TO tickets_user;
+   \q
+   ```
+
+5. **Clonar y compilar**
+   ```bash
+   git clone https://github.com/PalominoSalas/tickets-backend.git
+   cd tickets-backend
+   ./mvnw clean install -DskipTests
+   ```
+
+6. **Crear servicio systemd**
+   ```bash
+   sudo nano /etc/systemd/system/tickets-backend.service
+   ```
+
+   Contenido:
+   ```ini
+   [Unit]
+   Description=Tickets Backend Application
+   After=network.target postgresql.service
+
+   [Service]
+   Type=simple
+   User=root
+   WorkingDirectory=/root/tickets-backend
+   ExecStart=java -jar target/tickets-backend-0.0.1-SNAPSHOT.jar \
+     --spring.datasource.url=jdbc:postgresql://localhost:5432/tickets_db \
+     --spring.datasource.username=tickets_user \
+     --spring.datasource.password=strong_password \
+     --app.jwt.secret=your_secret_key
+   Restart=always
+   RestartSec=10
+
+   [Install]
+   WantedBy=multi-user.target
+   ```
+
+7. **Iniciar servicio**
+   ```bash
+   sudo systemctl daemon-reload
+   sudo systemctl enable tickets-backend
+   sudo systemctl start tickets-backend
+   sudo systemctl status tickets-backend
+   ```
+
+8. **Configurar Nginx como Reverse Proxy**
+   ```bash
+   sudo nano /etc/nginx/sites-available/tickets-backend
+   ```
+
+   Contenido:
+   ```nginx
+   server {
+       listen 80;
+       server_name your_domain.com;
+
+       location / {
+           proxy_pass http://localhost:8080;
+           proxy_set_header Host $host;
+           proxy_set_header X-Real-IP $remote_addr;
+           proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+       }
+   }
+   ```
+
+   ```bash
+   sudo ln -s /etc/nginx/sites-available/tickets-backend /etc/nginx/sites-enabled/
+   sudo systemctl restart nginx
+   ```
+
+9. **SSL con Let's Encrypt**
+   ```bash
+   apt install certbot python3-certbot-nginx -y
+   certbot --nginx -d your_domain.com
+   ```
+
+---
+
+### Comparativa de Opciones
+
+| Opción | Facilidad | Costo | Escalabilidad | Control |
+|--------|-----------|-------|---------------|---------|
+| Render | ⭐⭐⭐⭐⭐ | $7-20/mes | Media | Bajo |
+| Railway | ⭐⭐⭐⭐⭐ | $5-50/mes | Media | Bajo |
+| AWS | ⭐⭐⭐ | $10-100/mes | Alta | Alto |
+| Google Cloud | ⭐⭐⭐ | $10-100/mes | Alta | Alto |
+| DigitalOcean | ⭐⭐⭐ | $5-20/mes | Media | Muy Alto |
+
+**Recomendación para principiantes:** Render o Railway (súper fácil)
+**Recomendación para producción:** AWS o Google Cloud
+
+---
+
+## �📄 Licencia
 
 Este proyecto está bajo la licencia MIT.
 
