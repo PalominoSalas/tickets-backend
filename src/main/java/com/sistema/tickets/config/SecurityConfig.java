@@ -43,9 +43,11 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
+        // Permite las URLs del Frontend
         configuration.setAllowedOrigins(List.of("http://localhost:5173", "http://127.0.0.1:5173"));
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept"));
+        configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept", "X-Requested-With"));
+        configuration.setExposedHeaders(List.of("Authorization"));
         configuration.setAllowCredentials(true);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
@@ -53,7 +55,6 @@ public class SecurityConfig {
         return source;
     }
 
-    @SuppressWarnings("null")
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
@@ -61,11 +62,28 @@ public class SecurityConfig {
             .csrf(AbstractHttpConfigurer::disable)
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/v1/auth/**").permitAll()
+                // 1. PERMITIR PREFLIGHT (Peticiones OPTIONS del navegador)
+                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+
+                // 2. RUTAS PÚBLICAS Y SWAGGER
+                .requestMatchers("/api/v1/auth/**", "/api/auth/**").permitAll()
                 .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/swagger-ui.html").permitAll()
-                .requestMatchers(HttpMethod.POST, "/api/tickets").hasAnyRole("CLIENTE", "ADMIN")
-                .requestMatchers(HttpMethod.GET, "/api/tickets/**").hasAnyRole("CLIENTE", "AGENTE", "ADMIN", "SOPORTE")
-                .requestMatchers(HttpMethod.PATCH, "/api/tickets/**").hasAnyRole("CLIENTE", "AGENTE", "ADMIN", "SOPORTE")
+
+                // 3. REGLAS DE TICKETS (Soporta con y sin /v1/ y comodines)
+                // Se usa hasAnyAuthority para evitar fallos si el rol no trae el prefijo "ROLE_"
+                .requestMatchers(HttpMethod.POST, "/api/tickets/**", "/api/v1/tickets/**")
+                    .hasAnyAuthority("CLIENTE", "ADMIN", "ROLE_CLIENTE", "ROLE_ADMIN")
+
+                .requestMatchers(HttpMethod.GET, "/api/tickets/**", "/api/v1/tickets/**")
+                    .hasAnyAuthority("CLIENTE", "AGENTE", "ADMIN", "SOPORTE", "ROLE_CLIENTE", "ROLE_AGENTE", "ROLE_ADMIN", "ROLE_SOPORTE")
+
+                .requestMatchers(HttpMethod.PATCH, "/api/tickets/**", "/api/v1/tickets/**")
+                    .hasAnyAuthority("CLIENTE", "AGENTE", "ADMIN", "SOPORTE", "ROLE_CLIENTE", "ROLE_AGENTE", "ROLE_ADMIN", "ROLE_SOPORTE")
+
+                .requestMatchers(HttpMethod.PUT, "/api/tickets/**", "/api/v1/tickets/**")
+                    .hasAnyAuthority("CLIENTE", "AGENTE", "ADMIN", "SOPORTE", "ROLE_CLIENTE", "ROLE_AGENTE", "ROLE_ADMIN", "ROLE_SOPORTE")
+
+                // 4. CUALQUIER OTRA RUTA
                 .anyRequest().authenticated()
             );
 
