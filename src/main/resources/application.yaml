@@ -1,0 +1,61 @@
+spring:
+  application:
+    name: sistema-tickets-api
+
+  # -------------------------------------------------------------------
+  # BASE DE DATOS (PostgreSQL)
+  # -------------------------------------------------------------------
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:postgres}?currentSchema=public
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:123456}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 5
+      idle-timeout: 300000
+      connection-timeout: 20000
+
+  # -------------------------------------------------------------------
+  # JPA / HIBERNATE
+  # -------------------------------------------------------------------
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    # ddl-auto en 'validate' o 'none' para que Flyway controle las migraciones de BD
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        jdbc:
+          time_zone: UTC
+
+  # -------------------------------------------------------------------
+  # FLYWAY (Migraciones de Base de Datos)
+  # -------------------------------------------------------------------
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    baseline-version: 1
+    locations: classpath:db/migration
+    schemas: public
+
+# -------------------------------------------------------------------
+# CONFIGURACIÓN JWT (Propiedades Personalizadas)
+# -------------------------------------------------------------------
+jwt:
+  # Clave secreta (debe ser de al menos 256 bits / 32 caracteres para HS256)
+  secret: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
+  # Tiempo de expiración del token en milisegundos (ejemplo: 86,400,000 ms = 24 horas)
+  expiration: ${JWT_EXPIRATION:86400000}
+
+# -------------------------------------------------------------------
+# LOGGING (Opcional, útil para desarrollo)
+# -------------------------------------------------------------------
+logging:
+  level:
+    root: INFO
+    com.sistema.tickets: DEBUG
+    org.hibernate.SQL: DEBUG
+    org.flywaydb: INFO
