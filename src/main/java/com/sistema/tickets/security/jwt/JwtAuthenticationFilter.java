@@ -25,41 +25,46 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final CustomUserDetailsService customUserDetailsService;
 
     @Override
+    protected boolean shouldNotFilter(@NonNull HttpServletRequest request) throws ServletException {
+        // Omite el filtro por completo para solicitudes preflight OPTIONS
+        return "OPTIONS".equalsIgnoreCase(request.getMethod());
+    }
+
+    @Override
     protected void doFilterInternal(
             @NonNull HttpServletRequest request,
             @NonNull HttpServletResponse response,
             @NonNull FilterChain filterChain
     ) throws ServletException, IOException {
 
-        // 1. IGNORAR PETICIONES PREFLIGHT (OPTIONS)
-        // Los navegadores envían OPTIONS sin token antes de POST/PUT/DELETE.
-        if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
-            response.setStatus(HttpServletResponse.SC_OK);
-            filterChain.doFilter(request, response);
-            return;
-        }
-
         try {
             String jwt = parseJwt(request);
-            if (jwt != null && jwtUtils.validarToken(jwt)) {
-                String email = jwtUtils.getEmailFromToken(jwt);
 
-                UserDetails userDetails = customUserDetailsService.loadUserByUsername(email);
+            if (jwt != null) {
+                if (jwtUtils.validarToken(jwt)) {
+                    String email = jwtUtils.getEmailFromToken(jwt);
+                    UserDetails userDetails = customUserDetailsService.loadUserByUsername(email);
 
-                UsernamePasswordAuthenticationToken authentication =
-                        new UsernamePasswordAuthenticationToken(
-                                userDetails,
-                                null,
-                                userDetails.getAuthorities()
-                        );
+                    UsernamePasswordAuthenticationToken authentication =
+                            new UsernamePasswordAuthenticationToken(
+                                    userDetails,
+                                    null,
+                                    userDetails.getAuthorities()
+                            );
 
-                authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                    authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                    SecurityContextHolder.getContext().setAuthentication(authentication);
 
-                SecurityContextHolder.getContext().setAuthentication(authentication);
+                    logger.debug(String.format("Usuario autenticado: '%s' | Authorities: %s | URI: %s",
+                            email, userDetails.getAuthorities(), request.getRequestURI()));
+                } else {
+                    logger.warn("Token JWT inválido o expirado recibido en la ruta: " + request.getRequestURI());
+                }
+            } else {
+                logger.trace("No se encontró cabecera de autorización Bearer para: " + request.getRequestURI());
             }
         } catch (Exception e) {
-            logger.error("No se pudo establecer la autenticación del usuario en el contexto de seguridad", e);
-            // Limpiamos el contexto en caso de token inválido o manipulado
+            logger.error("Error al procesar la autenticación JWT en el contexto de seguridad", e);
             SecurityContextHolder.clearContext();
         }
 
@@ -70,7 +75,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String headerAuth = request.getHeader("Authorization");
 
         if (StringUtils.hasText(headerAuth) && headerAuth.startsWith("Bearer ")) {
-            return headerAuth.substring(7);
+            return headerAuth.substring(7).trim();
         }
 
         return null;
