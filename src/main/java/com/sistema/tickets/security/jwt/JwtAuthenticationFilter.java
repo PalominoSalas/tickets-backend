@@ -31,6 +31,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             @NonNull FilterChain filterChain
     ) throws ServletException, IOException {
 
+        // 1. IGNORAR PETICIONES PREFLIGHT (OPTIONS)
+        // Los navegadores envían OPTIONS sin token antes de POST/PUT/DELETE.
+        if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
+            response.setStatus(HttpServletResponse.SC_OK);
+            filterChain.doFilter(request, response);
+            return;
+        }
+
         try {
             String jwt = parseJwt(request);
             if (jwt != null && jwtUtils.validarToken(jwt)) {
@@ -51,6 +59,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             }
         } catch (Exception e) {
             logger.error("No se pudo establecer la autenticación del usuario en el contexto de seguridad", e);
+            // Limpiamos el contexto en caso de token inválido o manipulado
+            SecurityContextHolder.clearContext();
         }
 
         filterChain.doFilter(request, response);
